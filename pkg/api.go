@@ -7,12 +7,25 @@ import (
 	"strings"
 	"time"
 
+	"log"
+
 	"github.com/dgrijalva/jwt-go"
 )
 
-var jwtKey = []byte("my_secret_key")
+// Replaced the original jwtKey with an environment variable so it won't be visible through the code
+var jwtKey []byte
+
+// SetJWTKey configures the JWT key globally
+func SetJWTKey(secret string) {
+	jwtKey = []byte(secret)
+	if len(jwtKey) == 0 {
+		log.Fatal("JWT_SECRET_KEY is not set correctly")
+	}
+}
 
 type Claims struct {
+	//Added UserID to ensure that the user accessing or modifying a resource is the owner of that resource
+	UserID   int    `json:"user_id"`
 	Username string `json:"username"`
 	Role     string `json:"role"`
 	jwt.StandardClaims
@@ -59,6 +72,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 	expirationTime := time.Now().Add(1 * time.Hour)
 	claims := &Claims{
+		UserID:   authenticatedUser.ID, //Sets user's Id
 		Username: authenticatedUser.Username,
 		Role:     authenticatedUser.Role,
 		StandardClaims: jwt.StandardClaims{
@@ -117,10 +131,13 @@ func BalanceHandler(w http.ResponseWriter, r *http.Request, claims *Claims) {
 }
 
 func getBalance(w http.ResponseWriter, r *http.Request, claims *Claims) {
-	userId := r.URL.Query().Get("user_id")
-	uid, _ := strconv.Atoi(userId)
+	// userId := r.URL.Query().Get("user_id")
+	// uid, _ := strconv.Atoi(userId)
+
+	//Since Auth is validating that the request's Id matches the jwt's id,
+	//we can use claims.UserID for comapring
 	for _, acc := range accounts {
-		if acc.UserID == uid {
+		if acc.UserID == claims.UserID {
 			json.NewEncoder(w).Encode(map[string]float64{"balance": acc.Balance})
 			return
 		}
@@ -130,7 +147,7 @@ func getBalance(w http.ResponseWriter, r *http.Request, claims *Claims) {
 
 func depositBalance(w http.ResponseWriter, r *http.Request, claims *Claims) {
 	var body struct {
-		UserID int     `json:"user_id"`
+		// UserID int     `json:"user_id"`
 		Amount float64 `json:"amount"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -138,7 +155,8 @@ func depositBalance(w http.ResponseWriter, r *http.Request, claims *Claims) {
 		return
 	}
 	for i, acc := range accounts {
-		if acc.UserID == body.UserID {
+		//if acc.UserID == body.UserID
+		if acc.UserID == claims.UserID {
 			accounts[i].Balance += body.Amount
 			json.NewEncoder(w).Encode(accounts[i])
 			return
@@ -149,7 +167,7 @@ func depositBalance(w http.ResponseWriter, r *http.Request, claims *Claims) {
 
 func withdrawBalance(w http.ResponseWriter, r *http.Request, claims *Claims) {
 	var body struct {
-		UserID int     `json:"user_id"`
+		// UserID int     `json:"user_id"`
 		Amount float64 `json:"amount"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -157,7 +175,8 @@ func withdrawBalance(w http.ResponseWriter, r *http.Request, claims *Claims) {
 		return
 	}
 	for i, acc := range accounts {
-		if acc.UserID == body.UserID {
+		//if acc.UserID == body.UserID
+		if acc.UserID == claims.UserID {
 			if acc.Balance < body.Amount {
 				http.Error(w, ErrInsufficientFunds.Error(), http.StatusBadRequest)
 				return
@@ -186,6 +205,14 @@ func Auth(next func(http.ResponseWriter, *http.Request, *Claims)) http.HandlerFu
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
+
+		//Ensures the UserID from the token matches the resource being accessed
+		userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
+		if err != nil || userID != claims.UserID {
+			http.Error(w, "Unauthorized access to resource", http.StatusForbidden)
+			return
+		}
+
 		next(w, r, claims)
 	}
 }
