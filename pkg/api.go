@@ -12,10 +12,10 @@ import (
 	"github.com/dgrijalva/jwt-go"
 )
 
-// Replaced the original jwtKey with an environment variable so it won't be visible through the code
+//Replaced the original jwtKey with an environment variable so it won't be visible through the code
 var jwtKey []byte
 
-// SetJWTKey configures the JWT key globally
+//SetJWTKey configures the JWT key globally
 func SetJWTKey(secret string) {
 	jwtKey = []byte(secret)
 	if len(jwtKey) == 0 {
@@ -32,6 +32,16 @@ type Claims struct {
 }
 
 func Register(w http.ResponseWriter, r *http.Request) {
+	//Limit request body to 1MB
+	r.Body = http.MaxBytesReader(w, r.Body, 1048576) 
+	defer r.Body.Close()
+
+	//Check that requests are type json
+    if r.Header.Get("Content-Type") != "application/json" {
+        http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType) 
+        return
+    }
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
@@ -47,6 +57,15 @@ func Register(w http.ResponseWriter, r *http.Request) {
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1048576) //Limit request body to 1MB
+	defer r.Body.Close()
+
+	//Check that requests are type json
+	if r.Header.Get("Content-Type") != "application/json" {
+		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType) 
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
@@ -89,14 +108,23 @@ func Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func AccountsHandler(w http.ResponseWriter, r *http.Request, claims *Claims) {
+	//Check that requests are type json
+	if r.Header.Get("Content-Type") != "application/json" {
+		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType) 
+		return
+	}
+
+	//Only admins can send accounts requests 
+	if claims.Role != "admin" {
+		http.Error(w, "Unauthorized", http.StatusForbidden)
+		return
+	}
+
 	if r.Method == http.MethodPost {
-		if claims.Role != "admin" {
-			http.Error(w, "Unauthorized", http.StatusForbidden)
-			return
-		}
 		createAccount(w, r, claims)
 		return
 	}
+
 	if r.Method == http.MethodGet {
 		listAccounts(w, r, claims)
 		return
@@ -120,6 +148,15 @@ func listAccounts(w http.ResponseWriter, r *http.Request, claims *Claims) {
 }
 
 func BalanceHandler(w http.ResponseWriter, r *http.Request, claims *Claims) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1048576) //Limit request body to 1MB
+	defer r.Body.Close()
+
+	//Check that requests are type json
+	if r.Header.Get("Content-Type") != "application/json" {
+		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType) 
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
 		getBalance(w, r, claims)
@@ -133,6 +170,7 @@ func BalanceHandler(w http.ResponseWriter, r *http.Request, claims *Claims) {
 func getBalance(w http.ResponseWriter, r *http.Request, claims *Claims) {
 	// userId := r.URL.Query().Get("user_id")
 	// uid, _ := strconv.Atoi(userId)
+	
 
 	//Since Auth is validating that the request's Id matches the jwt's id,
 	//we can use claims.UserID for comapring
