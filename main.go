@@ -1,13 +1,13 @@
 package main
 
-
 import (
 	"fmt"
 	"log"
+	"net/http" //for HTTP server
 	"os"
+
+	"f5.com/ha/api_sec"
 	"github.com/joho/godotenv"
-	//imported pkg for api.go
-	"f5.com/ha/pkg" 
 )
 
 func loadEnv() {
@@ -20,13 +20,22 @@ func loadEnv() {
 }
 
 func main() {
-	//Load environment variables from the .env file
-	loadEnv()
+	fmt.Println("Server's up!")
+	loadEnv() //Load environment variables from the .env file
 
 	//Access environment variable
 	jwtSecret := os.Getenv("JWT_SECRET_KEY")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET_KEY is not set in environment variables")
+	}
 
-	//Set the global JWT key in api_sec package
 	api_sec.SetJWTKey(jwtSecret)
 
+	//Define routes and associate them with api functions
+	http.HandleFunc("/register", api_sec.ContentTypeJSON(api_sec.Register))
+	http.HandleFunc("/login", api_sec.ContentTypeJSON(api_sec.Login))
+	http.HandleFunc("/accounts", api_sec.ContentTypeJSON(api_sec.Auth(api_sec.AccountsHandler)))
+	http.HandleFunc("/balance", api_sec.ContentTypeJSON(api_sec.Auth(api_sec.BalanceHandler)))
+
+	log.Fatal(http.ListenAndServe(":8080", nil)) //Listen and serve on port 8080
 }

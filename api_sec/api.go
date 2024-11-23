@@ -7,20 +7,16 @@ import (
 	"strings"
 	"time"
 
-	"log"
-
+	// "log"
 	"github.com/dgrijalva/jwt-go"
 )
 
-//Replaced the original jwtKey with an environment variable so it won't be visible through the code
+// Replaced the original jwtKey with an environment variable so it won't be visible through the code
 var jwtKey []byte
 
-//SetJWTKey configures the JWT key globally
+// SetJWTKey configures the JWT key globally
 func SetJWTKey(secret string) {
 	jwtKey = []byte(secret)
-	if len(jwtKey) == 0 {
-		log.Fatal("JWT_SECRET_KEY is not set correctly")
-	}
 }
 
 type Claims struct {
@@ -33,14 +29,8 @@ type Claims struct {
 
 func Register(w http.ResponseWriter, r *http.Request) {
 	//Limit request body to 1MB
-	r.Body = http.MaxBytesReader(w, r.Body, 1048576) 
+	r.Body = http.MaxBytesReader(w, r.Body, 1048576)
 	defer r.Body.Close()
-
-	//Check that requests are type json
-    if r.Header.Get("Content-Type") != "application/json" {
-        http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType) 
-        return
-    }
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -59,12 +49,6 @@ func Register(w http.ResponseWriter, r *http.Request) {
 func Login(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1048576) //Limit request body to 1MB
 	defer r.Body.Close()
-
-	//Check that requests are type json
-	if r.Header.Get("Content-Type") != "application/json" {
-		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType) 
-		return
-	}
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -108,13 +92,8 @@ func Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func AccountsHandler(w http.ResponseWriter, r *http.Request, claims *Claims) {
-	//Check that requests are type json
-	if r.Header.Get("Content-Type") != "application/json" {
-		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType) 
-		return
-	}
 
-	//Only admins can send accounts requests 
+	//Only admins can send accounts requests
 	if claims.Role != "admin" {
 		http.Error(w, "Unauthorized", http.StatusForbidden)
 		return
@@ -151,12 +130,6 @@ func BalanceHandler(w http.ResponseWriter, r *http.Request, claims *Claims) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1048576) //Limit request body to 1MB
 	defer r.Body.Close()
 
-	//Check that requests are type json
-	if r.Header.Get("Content-Type") != "application/json" {
-		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType) 
-		return
-	}
-
 	switch r.Method {
 	case http.MethodGet:
 		getBalance(w, r, claims)
@@ -170,7 +143,6 @@ func BalanceHandler(w http.ResponseWriter, r *http.Request, claims *Claims) {
 func getBalance(w http.ResponseWriter, r *http.Request, claims *Claims) {
 	// userId := r.URL.Query().Get("user_id")
 	// uid, _ := strconv.Atoi(userId)
-	
 
 	//Since Auth is validating that the request's Id matches the jwt's id,
 	//we can use claims.UserID for comapring
@@ -227,6 +199,17 @@ func withdrawBalance(w http.ResponseWriter, r *http.Request, claims *Claims) {
 	http.Error(w, "Account not found", http.StatusNotFound)
 }
 
+func ContentTypeJSON(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Content-Type") != "application/json" {
+			http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+			return
+		}
+		// Proceed to the next middleware/handler
+		next(w, r)
+	}
+}
+
 func Auth(next func(http.ResponseWriter, *http.Request, *Claims)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tokenStr := r.Header.Get("Authorization")
@@ -241,13 +224,6 @@ func Auth(next func(http.ResponseWriter, *http.Request, *Claims)) http.HandlerFu
 		})
 		if err != nil || !token.Valid {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		//Ensures the UserID from the token matches the resource being accessed
-		userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
-		if err != nil || userID != claims.UserID {
-			http.Error(w, "Unauthorized access to resource", http.StatusForbidden)
 			return
 		}
 
