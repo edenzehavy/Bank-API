@@ -78,8 +78,8 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Validate that all required fields are provided
-	if creds.ID == 0 {
-		http.Error(w, "Missing ID", http.StatusBadRequest)
+	if creds.Username == "" {
+		http.Error(w, "Missing Username", http.StatusBadRequest)
 		return
 	}
 	if creds.Password == "" {
@@ -118,6 +118,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
 }
 
+// Get all users for admins
 func GetUsers(w http.ResponseWriter, r *http.Request, claims *Claims) {
 	if claims.Role != "admin" {
 		http.Error(w, "Unauthorized", http.StatusForbidden)
@@ -153,8 +154,8 @@ func createAccount(w http.ResponseWriter, r *http.Request, claims *Claims) {
 	}
 
 	//Validate that all required fields are provided
-	if acc.ID == 0 {
-		http.Error(w, "Missing ID", http.StatusBadRequest)
+	if acc.UserID == 0 {
+		http.Error(w, "Missing UserID", http.StatusBadRequest)
 		return
 	}
 	if acc.Balance < 0.0 {
@@ -162,10 +163,20 @@ func createAccount(w http.ResponseWriter, r *http.Request, claims *Claims) {
 		return
 	}
 
-	acc.ID = len(accounts) + 1
-	acc.CreatedAt = time.Now()
-	accounts = append(accounts, acc)
-	json.NewEncoder(w).Encode(acc)
+	//Checks that a user with the UserID specified in the query exists.
+	for _, user := range users {
+		if user.ID == acc.UserID {
+			acc.ID = len(accounts) + 1
+			acc.CreatedAt = time.Now()
+			accounts = append(accounts, acc)
+			json.NewEncoder(w).Encode(acc)
+			return
+		}
+	}
+
+	//Can't create accound for not exisiting users
+	http.Error(w, "No User with the specified ID", http.StatusBadRequest)
+
 }
 
 func listAccounts(w http.ResponseWriter, r *http.Request, claims *Claims) {
@@ -179,10 +190,17 @@ func BalanceHandler(w http.ResponseWriter, r *http.Request, claims *Claims) {
 	switch r.Method {
 	case http.MethodGet:
 		getBalance(w, r, claims)
+	//Makes sure only users can modify the balance
 	case http.MethodPost:
-		depositBalance(w, r, claims)
+		if claims.Role == "user" {
+			ContentTypeJSON(depositBalance(w, r, claims))
+		}
+		http.Error(w, "Unauthorized", http.StatusForbidden)
 	case http.MethodDelete:
-		withdrawBalance(w, r, claims)
+		if claims.Role == "user" {
+			withdrawBalance(w, r, claims)
+		}
+		http.Error(w, "Unauthorized", http.StatusForbidden)
 	}
 }
 
@@ -301,11 +319,21 @@ func Auth(next func(http.ResponseWriter, *http.Request, *Claims)) http.HandlerFu
 			return
 		}
 
+		//This section ensures that only users with valid claims can access the resource.
+		//it checks that for regular users: the `user_id` in the request matches the `user_id` in the token claims.
+		//if the request is made by an admin: there's no need for this claim check, as admins have broader access.
+		//however, admins are restricted to certain operations so any further specific authorization for admins
+		//will be handled inside the individual handler function.
+		//if the `user_id` in the request does not match the user’s claim or is invalid,
+		//an unauthorized error is returned.
 		if claims.Role != "admin" {
-			userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
-			if err != nil || userID != claims.UserID {
-				http.Error(w, "Unauthorized access to resource", http.StatusForbidden)
-				return
+			userIDParam := r.URL.Query().Get("user_id")
+			if userIDParam != "" {
+				userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
+				if err != nil || userID != claims.UserID {
+					http.Error(w, "Unauthorized access to resource", http.StatusForbidden)
+					return
+				}
 			}
 		}
 

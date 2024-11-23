@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http" //for HTTP server
 	"os"
+
 	"f5.com/ha/api_sec"
 	"github.com/joho/godotenv"
 )
@@ -34,8 +35,8 @@ func main() {
 	http.HandleFunc("/register", api_sec.ContentTypeJSON(api_sec.Register))
 	http.HandleFunc("/login", api_sec.ContentTypeJSON(api_sec.Login))
 	http.HandleFunc("/accounts", api_sec.ContentTypeJSON(api_sec.Auth(api_sec.AccountsHandler)))
-	http.HandleFunc("/balance", api_sec.ContentTypeJSON(api_sec.Auth(api_sec.BalanceHandler)))
-	http.HandleFunc("/users", api_sec.ContentTypeJSON(api_sec.Auth(api_sec.GetUsers)))
+	http.HandleFunc("/balance", api_sec.Auth(api_sec.BalanceHandler))
+	http.HandleFunc("/users", api_sec.Auth(api_sec.GetUsers))
 
 	log.Fatal(http.ListenAndServe(":8080", nil)) //Listen and serve on port 8080
 }
