@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
-	// "log"
+	"bytes"
+	"io"
+
 	"github.com/dgrijalva/jwt-go"
 )
 
@@ -118,16 +120,6 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
 }
 
-// Get all users for admins
-func GetUsers(w http.ResponseWriter, r *http.Request, claims *Claims) {
-	if claims.Role != "admin" {
-		http.Error(w, "Unauthorized", http.StatusForbidden)
-		return
-	}
-
-	json.NewEncoder(w).Encode(users)
-}
-
 func AccountsHandler(w http.ResponseWriter, r *http.Request, claims *Claims) {
 	//Only admins can send accounts requests
 	if claims.Role != "admin" {
@@ -180,7 +172,12 @@ func createAccount(w http.ResponseWriter, r *http.Request, claims *Claims) {
 }
 
 func listAccounts(w http.ResponseWriter, r *http.Request, claims *Claims) {
-	json.NewEncoder(w).Encode(accounts)
+	if claims.Role != "admin" {
+		http.Error(w, "Unauthorized", http.StatusForbidden)
+		return
+	}
+
+	json.NewEncoder(w).Encode(users)
 }
 
 func BalanceHandler(w http.ResponseWriter, r *http.Request, claims *Claims) {
@@ -193,12 +190,14 @@ func BalanceHandler(w http.ResponseWriter, r *http.Request, claims *Claims) {
 	//Makes sure only users can modify the balance
 	case http.MethodPost:
 		if claims.Role == "user" {
-			ContentTypeJSON(depositBalance(w, r, claims))
+			depositBalance(w, r, claims)
+			return
 		}
 		http.Error(w, "Unauthorized", http.StatusForbidden)
 	case http.MethodDelete:
 		if claims.Role == "user" {
 			withdrawBalance(w, r, claims)
+			return
 		}
 		http.Error(w, "Unauthorized", http.StatusForbidden)
 	}
@@ -212,10 +211,16 @@ func getBalance(w http.ResponseWriter, r *http.Request, claims *Claims) {
 		return
 	}
 
+	userID, err := strconv.Atoi(userId)
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
 	//Since Auth is validating that the request's Id matches the jwt's id,
 	//we can use claims.UserID for comapring
 	for _, acc := range accounts {
-		if acc.UserID == claims.UserID {
+		if acc.UserID == userID {
 			json.NewEncoder(w).Encode(map[string]float64{"balance": acc.Balance})
 			return
 		}
@@ -324,14 +329,42 @@ func Auth(next func(http.ResponseWriter, *http.Request, *Claims)) http.HandlerFu
 		//if the request is made by an admin: there's no need for this claim check, as admins have broader access.
 		//however, admins are restricted to certain operations so any further specific authorization for admins
 		//will be handled inside the individual handler function.
-		//if the `user_id` in the request does not match the user’s claim or is invalid,
+		//if the `user_id` in the request (body or url) does not match the user’s claim or is invalid,
 		//an unauthorized error is returned.
+
 		if claims.Role != "admin" {
 			userIDParam := r.URL.Query().Get("user_id")
 			if userIDParam != "" {
-				userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
+				userID, err := strconv.Atoi(userIDParam)
 				if err != nil || userID != claims.UserID {
-					http.Error(w, "Unauthorized access to resource", http.StatusForbidden)
+					http.Error(w, "Unauthorized", http.StatusUnauthorized)
+					return
+				}
+			}
+
+			var bodyData struct {
+				UserID int `json:"user_id"`
+			}
+
+			//Check user id in the json body for post and delete requests
+			if r.Method == http.MethodPost || r.Method == http.MethodDelete {
+				bodyBytes, err := io.ReadAll(r.Body)
+				if err != nil {
+					http.Error(w, "Invalid request body", http.StatusBadRequest)
+					return
+				}
+
+				//Reassign body to allow later handlers to read it
+				r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+				//Decode body into struct
+				if err := json.Unmarshal(bodyBytes, &bodyData); err == nil && bodyData.UserID != 0 {
+					if bodyData.UserID != claims.UserID {
+						http.Error(w, "Unauthorized", http.StatusUnauthorized)
+						return
+					}
+				} else if err != nil {
+					http.Error(w, "Invalid request body", http.StatusBadRequest)
 					return
 				}
 			}

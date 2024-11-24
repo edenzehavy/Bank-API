@@ -19,6 +19,26 @@ func loadEnv() {
 	}
 }
 
+// A different middleware is required for different balance and account requests.
+// get doesn't need content type json verifier since there's no body in this request.
+// post and delete need both content type json and auth.
+func handleRequest(w http.ResponseWriter, r *http.Request, handler func(http.ResponseWriter, *http.Request, *api_sec.Claims)) {
+	switch r.Method {
+	case http.MethodDelete, http.MethodPost:
+		// Apply ContentTypeJSON and Auth middleware
+		api_sec.ContentTypeJSON(api_sec.Auth(func(w http.ResponseWriter, r *http.Request, claims *api_sec.Claims) {
+			handler(w, r, claims) // Pass claims to the handler
+		}))(w, r)
+	case http.MethodGet:
+		// Only apply Auth for GET
+		api_sec.Auth(func(w http.ResponseWriter, r *http.Request, claims *api_sec.Claims) {
+			handler(w, r, claims) // Pass claims to the handler
+		})(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
 func main() {
 	fmt.Println("Server's up!")
 	loadEnv() //Load environment variables from the .env file
@@ -34,9 +54,14 @@ func main() {
 	//Define routes and associate them with api functions
 	http.HandleFunc("/register", api_sec.ContentTypeJSON(api_sec.Register))
 	http.HandleFunc("/login", api_sec.ContentTypeJSON(api_sec.Login))
-	http.HandleFunc("/accounts", api_sec.ContentTypeJSON(api_sec.Auth(api_sec.AccountsHandler)))
-	http.HandleFunc("/balance", api_sec.Auth(api_sec.BalanceHandler))
-	http.HandleFunc("/users", api_sec.Auth(api_sec.GetUsers))
+
+	// Apply the generalized handler for /accounts and /balance with Auth middleware and ContentTypeJSON
+	http.HandleFunc("/accounts", func(w http.ResponseWriter, r *http.Request) {
+		handleRequest(w, r, api_sec.AccountsHandler)
+	})
+	http.HandleFunc("/balance", func(w http.ResponseWriter, r *http.Request) {
+		handleRequest(w, r, api_sec.BalanceHandler)
+	})
 
 	log.Fatal(http.ListenAndServe(":8080", nil)) //Listen and serve on port 8080
 }
