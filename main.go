@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http" //for HTTP server
 	"os"
-
 	"f5.com/ha/api_sec"
 	"github.com/joho/godotenv"
 )
