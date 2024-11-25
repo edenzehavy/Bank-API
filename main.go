@@ -3,9 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http" //for HTTP server
+	"net/http" 
 	"os"
-
 	"f5.com/ha/api_sec"
 	"github.com/joho/godotenv"
 )

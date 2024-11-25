@@ -2,7 +2,8 @@ package api_sec
 
 import (
 	"encoding/json"
-	"fmt"
+	// "fmt"
+	"strings"
 	"log"
 	"net/http"
 	"os"
@@ -26,13 +27,20 @@ type LogData struct {
 func createLog(r *http.Request, statusCode int, bodyLen int) {
 	reqURL := r.URL.String()
 	qParams := r.URL.Query().Encode()
-	headers := fmt.Sprintf("%v", r.Header)
+
+    var headersBuilder strings.Builder
+    
+    //iterate over all headers and append them to the string builder
+    for key, values := range r.Header {
+        headersBuilder.WriteString(key + ": " + strings.Join(values, ", ") + "\n")
+    }
+
 	reqBodyLen := int(r.ContentLength)
 
 	currLog := LogData{}
 	currLog.Req.URL = reqURL
 	currLog.Req.QSParams = qParams
-	currLog.Req.Headers = headers
+	currLog.Req.Headers = headersBuilder.String()
 	currLog.Req.ReqBodyLen = reqBodyLen
 
 	//compute status class
