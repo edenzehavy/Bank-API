@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http" //for HTTP server
 	"os"
+
 	"f5.com/ha/api_sec"
 	"github.com/joho/godotenv"
 )
@@ -22,7 +23,7 @@ func loadEnv() {
 // get doesn't need content type json verifier since there's no body in this request.
 // post and delete need both content type json and auth.
 func MethodRouter(w http.ResponseWriter, r *http.Request, handler func(http.ResponseWriter, *http.Request, *api_sec.Claims)) {
-	log.Println("Reached Method Router")
+	log.Println("Reached MethodRouter")
 	switch r.Method {
 	case http.MethodDelete, http.MethodPost:
 		// Apply ContentTypeJSON and Auth middleware
