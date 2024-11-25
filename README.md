@@ -1,14 +1,16 @@
 # Bank API Assignment (F5)
 
-This repository contains a simple bank API implementation for a home assignment provided by F5. The API is built in Go and includes user authentication using JWT tokens and role-based access control. It allows users to register, log in, manage accounts, and check balances. Admin users can also create accounts and view all user balances. 
+This repository contains a simple bank API implementation for a home assignment provided by F5. The API is built in Go and includes user authentication using JWT tokens and role-based access control. It allows users to register, log in, manage accounts, and check balances. Admin users can also create accounts and view all user balances.
 
 ## Features:
 - **JWT Token Authentication**: Secure login using JSON Web Tokens (JWT).
 - **Role-based Access**: Admin and regular user roles to control access.
-- **Endpoints**:
-  - **User**: Register, Login, Get Users (Admin only).
-  - **Account**: Create Account, Get Account Details.
-  - **Balance**: Get Balance, Deposit, Withdraw (Admin can view any user's balance).
+- **Environment Variable for Security**: Token key is stored as an environment variable to ensure it is not visible in the code.
+- **Admin Permissions**: Only admins can create accounts and view all accounts to prevent unauthorized account creation.
+- **User Account Operations**: Admins can create their own accounts, deposit to them, and withdraw from them. However, they cannot perform these actions on other users' accounts.
+- **Input Validation**: Ensures that input data is correctly formatted and meets necessary constraints.
+- **Authorization Function**: Ensures that users can only operate on their own accounts.
+- **Middlewares**: Includes JSON content-type validation for requests and a logging middleware to generate access logs.
 
 ## Tasks Completed:
 1. **Security Fixes**: Identified and fixed security issues in the API.
@@ -49,12 +51,6 @@ To run this API locally, follow these steps:
 ## Logs and Security
 
 - **Access Logs**: Logs request and response data in JSON format, which includes request URL, query string parameters, request body length, and response status.
-- **BOLA Detection Tool**: Analyze the access logs for potential broken object level authorization (BOLA) attacks.
+- **BOLA Detection Tool**: (In another repo) Analyze the access logs for potential broken object level authorization (BOLA) attacks.
 
-## Contributing
 
-Feel free to fork the repository, make improvements, and submit pull requests. If you find any issues, please open an issue in the repository.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
